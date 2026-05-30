@@ -1,238 +1,208 @@
-# YC Voice Agents Hackathon
+# Stocked
 
-Welcome to the YC Voice Agents Hackathon, hosted by [Cekura](https://cekura.com) and [Daily](https://daily.co), in partnership with [NVIDIA](https://nvidia.com), [AWS](https://aws.amazon.com), and [Twilio](https://twilio.com).
+**Voice AI agent that calls pharmacies to check medication availability.**
 
-The goal of this event is to learn about building, scaling, evaluating, and continuously improving voice agents.
+Built for the YC Voice Agents Hackathon with [Pipecat](https://pipecat.ai), [NVIDIA Nemotron](https://huggingface.co/nvidia), [Twilio](https://twilio.com), and [Cekura](https://cekura.com).
 
-## Schedule, rules, and prizes
+## How it works
 
-This is a one-day event. Please arrive by 8:30. We'll kick things off at 9:00.
+1. You call the Stocked phone number
+2. **Arya** (our voice agent) picks up, asks your name, what medication you need, the dosage, and your area
+3. Arya hangs up and immediately calls pharmacies near you in parallel
+4. Arya asks each pharmacy: *"Hi, this is Arya calling from Stocked on behalf of [your name]. Do you have [medication] [dosage] available for pickup?"*
+5. You get a text with the results:
+   ```
+   Hi Siri, we checked 3 pharmacies for Amoxicillin 500mg.
+     CVS Pharmacy: IN STOCK ($12.99)
+     Walgreens: OUT OF STOCK
+     Rite Aid: OUT OF STOCK
+   - Stocked
+   ```
 
-### Schedule
+## Tech stack
 
-  - 8:00 AM – Doors open & registration
-  - 8:30 AM – Breakfast
-  - 9:00 AM – Welcome / Hackathon begins
-  - 12:00 PM – Lunch
-  - 6:00 PM – Submissions due
-  - 6:00 - 8:00 PM – Dinner, demos, and conversation
-  - 8:00 PM – Judges' presentations
-  - 9:00 PM – We all go home
+| Component | Service |
+|-----------|---------|
+| **STT** | NVIDIA Nemotron Speech Streaming (Parakeet 0.6B) |
+| **LLM** | NVIDIA Nemotron-3-Super-120B via vLLM |
+| **TTS** | Gradium |
+| **Orchestration** | Pipecat |
+| **Telephony** | Twilio |
+| **Testing** | Cekura |
 
-### General guidance
+**Gradium** is a TTS (text-to-speech) provider — it converts Arya's text responses into spoken audio. **Pipecat** is the orchestration framework that wires STT -> LLM -> TTS into a real-time voice pipeline. You need both: Pipecat runs the pipeline, Gradium provides one of the services in it.
 
-First of all, please respect the YC space. We very much appreciate YC hosting these events. Stay in the designated areas, clean up after meals, and in general be a good guest.
+## Medication database
 
-Build something new for this hackathon. Use the tools from Cekura to evaluate and improve the performance of what you build. Use Pipecat as the orchestration framework for your voice agent. We also encourage you to use the open source models from NVIDIA, but it's okay to use any models that work well for your project.
+The mock pharmacies pull from `medication_db.py`. Each pharmacy has different stock:
 
-There will be engineers from Cekura, Daily, NVIDIA, AWS, and Twilio available to help you with your project. Don't hesitate to find us.
+| Medication | Dosage | Form | Qty | Price Range |
+|-----------|--------|------|-----|-------------|
+| Amoxicillin | 250mg, 500mg | capsule | 30 | $4-13 |
+| Lisinopril | 10mg, 20mg | tablet | 30 | $4-18 |
+| Metformin | 500mg, 850mg | tablet | 60 | $4-15 |
+| Atorvastatin | 20mg, 40mg | tablet | 30 | $9-30 |
+| Omeprazole | 20mg | capsule | 30 | $8-22 |
+| Amlodipine | 5mg, 10mg | tablet | 30 | $4-15 |
+| Levothyroxine | 50mcg, 100mcg | tablet | 30 | $4-25 |
+| Azithromycin | 250mg | tablet | 6 | $8-18 |
+| Ciprofloxacin | 500mg | tablet | 20 | $6-20 |
+| Prednisone | 10mg | tablet | 21 | $4-10 |
+| Ibuprofen | 800mg | tablet | 30 | $4-12 |
+| Gabapentin | 300mg | capsule | 90 | $10-30 |
+| Hydrochlorothiazide | 25mg | tablet | 30 | $4-10 |
+| Sertraline | 50mg | tablet | 30 | $4-15 |
 
-Judging will start at 6:00. In general, the judges want to showcase interesting projects rather than just pick winners. So don't worry too much about what the judges are looking for in a project. Build something that demonstrates creativity, is interesting on a technical level, or solves a real problem! But do keep in mind that the judges want to see great examples of using Cekura to improve voice agent performance, and using open source models from NVIDIA.
+**Pharmacy inventory varies.** CVS has 11 medications, Rite Aid only has 4, Costco has everything. See `medication_db.py` for full details.
 
+## Example call script
 
-# Tech stack and starting points.
+**You call Stocked:**
+> *"Hi Arya, my name is Siri. Can you check if pharmacies near me in San Francisco have Amoxicillin 500mg?"*
 
-This repo contains two versions of a voice agent built with [Pipecat](https://pipecat.ai).
+**Arya confirms:**
+> *"Hey Siri. So that's Amoxicillin, 500 milligram capsules, in San Francisco — right?"*
 
-The demo bot **Field & Flower** is a neighborhood flower shop: callers order a bouquet for delivery while the bot looks up the catalog, captures delivery details, and places the order. All backend calls are mocked, so the starter runs with nothing but AI service keys.
+**You:** *"Yes"*
 
-## Version 1 — GPT-4.1
+**Arya:** *"I'm on it, Siri. I'll call a few pharmacies near you right now and text you what I find."*
 
-You can start with this before the hackathon, if you want to. Or test GPT-4.1 and Nemotron side-by-side during the hackathon, using Cekura.
+**Then Arya calls the pharmacy:**
+> *"Hi, this is Arya calling from Stocked on behalf of Siri. I'm checking if you have Amoxicillin 500 milligram capsules available for pickup?"*
 
-This bot only requires a Gradium API key and an OpenAI API key. Sign up for free at [Gradium](https://gradium.ai). We'll provide a code for Gradium credits, during the event.
+**Pharmacy:** *"Yes, we have that. For a thirty-day supply the cash price is about twelve ninety-nine."*
 
-- **STT:** [Gradium](https://gradium.ai)
-- **LLM:** [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses) (GPT-4.1)
-- **TTS:** [Gradium](https://gradium.ai)
-- **Transports:** SmallWebRTC (local dev) and [Twilio](https://www.twilio.com/en-us) (production telephony)
-- **Deploy target:** [Pipecat Cloud](https://pipecat.daily.co)
-
-## Version 2
-
-NVIDIA models hosted on AWS, available during the hackathon.
-
-```
-  export NVIDIA_ASR_URL=ws://44.241.251.184:8080
-  export NEMOTRON_LLM_URL=http://nemotron-fleet-alb-1322439314.us-west-2.elb.amazonaws.com/v1
-  export NEMOTRON_LLM_MODEL=nvidia/nemotron-3-super
-  ```
-
-- **STT:** [Nemotron Speech Streaming](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b)
-- **LLM:** [Nemotron 3 Super 120B](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16)
-- **TTS:** [Gradium](https://gradium.ai)
-- **Transports:** SmallWebRTC (local dev) and Twilio (production telephony)
-- **Deploy target:** [Pipecat Cloud](https://pipecat.daily.co)
-
-## Develop locally
-
-Get the bot running over WebRTC in your browser before you push to the cloud or wire up the phone, for a faster iteration loop.
+## Setup
 
 ### Prerequisites
-
 - Python 3.11+
-- [`uv`](https://docs.astral.sh/uv/getting-started/installation/) package manager
-- API keys for [OpenAI](https://platform.openai.com) and [Gradium](https://gradium.ai)
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
+- Twilio account with a phone number
+- Gradium API key ([gradium.ai](https://gradium.ai))
 
-### Setup
+### Install
 
-1. **Clone and enter the server directory:**
+```bash
+cd server
+cp .env.example .env
+# Fill in your API keys in .env
+uv sync
+```
 
-   ```bash
-   git clone https://github.com/pipecat-ai/yc-voice-agents-hackathon.git
-   cd yc-voice-agents-hackathon/server
-   ```
+### Configure .env
 
-2. **Configure API keys:**
+```bash
+# Twilio credentials
+TWILIO_ACCOUNT_SID=ACxxxxx
+TWILIO_AUTH_TOKEN=xxxxx
+TWILIO_PHONE_NUMBER=+14155550100    # Your Twilio number
 
-   ```bash
-   cp .env.example .env
-   # Edit .env and fill in OPENAI_API_KEY, GRADIUM_API_KEY.
-   # TWILIO_* keys are only needed when you wire up the phone (next section).
-   ```
+# DEMO MODE: Arya calls YOUR phone (you play the pharmacist)
+DEMO_PHONE_NUMBER=+14155559999      # Your real phone
 
-3. **Install dependencies:**
+# MOCK MODE: Arya calls a 2nd Twilio number (mock bot answers)
+# MOCK_PHARMACY_NUMBER=+14155550200
 
-   ```bash
-   uv sync
-   ```
+# Gradium TTS
+GRADIUM_API_KEY=xxxxx
 
-4. **Run the bot:**
+# NVIDIA (pre-configured for hackathon)
+NVIDIA_ASR_URL=ws://44.241.251.184:8080
+NEMOTRON_LLM_URL=http://nemotron-fleet-alb-1322439314.us-west-2.elb.amazonaws.com/v1
+NEMOTRON_LLM_MODEL=nvidia/nemotron-3-super
 
-   ```bash
-   # run one or the other of these
-   uv run bot-gpt.py
-   uv run bot-nemotron.py
-   ```
+# ngrok URL
+LOCAL_SERVER_URL=https://abc123.ngrok.io
+ENV=local
+```
 
-   Open [http://localhost:7860](http://localhost:7860) and click **Connect** to start talking. First launch takes ~20s while Pipecat downloads VAD and turn-detection models.
+### Run
 
-## Deploy to Pipecat Cloud
+```bash
+# Terminal 1: start ngrok
+ngrok http 7860
 
-Once the bot works locally, deploy to Pipecat Cloud and connect it to a Twilio phone number so anyone can call in.
-
-### Prerequisites
-
-1. [Sign up for Pipecat Cloud](https://pipecat.daily.co/sign-up)
-2. Install the [Pipecat CLI](https://github.com/pipecat-ai/pipecat-cli) and log in:
-
-   ```bash
-   uv tool install pipecat-ai-cli
-   pc cloud auth login
-   ```
+# Terminal 2: start the server
+cd server
+uv run main.py
+```
 
 ### Configure Twilio
 
-1. [Add credits / upgrade your Twilio account](https://twil.io/yc-hack)
-
-2. [Buy a phone number](https://help.twilio.com/articles/223135247) with voice capability.
-
-3. Get your Pipecat Cloud organization name:
-
-   ```bash
-   pc cloud organizations list
-   ```
-
-4. [Create a TwiML Bin](https://www.twilio.com/docs/serverless/twiml-bins/getting-started#create-a-new-twiml-bin) with this configuration:
-
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <Response>
-     <Connect>
-       <Stream url="wss://api.pipecat.daily.co/ws/twilio">
-         <Parameter name="_pipecatCloudServiceHost"
-           value="flower-bot.YOUR_ORG_NAME"/>
-       </Stream>
-     </Connect>
-   </Response>
-   ```
-
-   Replace `YOUR_ORG_NAME` with the org name from step 2.
-
-5. [Attach the TwiML Bin](https://www.twilio.com/docs/serverless/twiml-bins/getting-started#wire-your-twiml-bin-up-to-an-incoming-phone-call) to your Twilio number: Go to [your phone numbers](https://console.twilio.com/go?to=/account/__account__/us1/senders-hub/list/phone-numbers/inventory) → select your
-number → under **Voice Configuration**, set method to the **TwiML Bin** you created → Save.
-
-6. [Optional] Use [Twilio Dev phone](https://www.twilio.com/docs/labs/dev-phone) for testing.
-
-### Review the deployment configuration
-
-Your deployment details are specified in the `pcc-deploy.toml` file. You can learn more about options in the [docs](https://docs.pipecat.ai/api-reference/cli/cloud/deploy#configuration-file-pcc-deploy-toml).
-
-### Upload secrets
-
-```bash
-pc cloud secrets set flower-bot-secrets --file .env
+**Inbound number** (people call this): Set voice webhook to a TwiML Bin:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="wss://YOUR-NGROK.ngrok.io/ws/intake"/>
+  </Connect>
+</Response>
 ```
 
-This uploads everything from `.env` to Pipecat Cloud's secure storage. The bot reads from there at runtime, so you don't bake keys into the image.
-
-### Deploy
-
-Build and run your bot on Pipecat Cloud:
-
-```bash
-pc cloud deploy
+**Mock pharmacy number** (optional, for mock mode): Set voice webhook to a TwiML Bin:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="wss://YOUR-NGROK.ngrok.io/ws/mock"/>
+  </Connect>
+</Response>
 ```
 
-Learn more about [cloud builds](https://docs.pipecat.ai/pipecat-cloud/guides/cloud-builds).
+### Dashboard
 
-### Call your bot
+Open `http://localhost:7860/dashboard` to see live call status, pharmacy results, and transcripts in real time.
 
-Dial the Twilio number you set up. 🌷
-
-## Test your agent with Cekura
-
-[Cekura](https://cekura.com) tests and observes voice agents. For this hackathon, use it to **test the Pipecat bot you build in this repo** — run real conversations against it, score the transcripts, and fix what's failing before you demo.
-
-### Sign up
-
-Create your account at **[dashboard.cekura.ai](https://dashboard.cekura.ai)**. If you're approved for this hackathon, just sign up and your credits will show up automatically. If you don't see them, find someone from the Cekura team, they're on-site.
-
-### Onboarding (or skip it)
-
-On first login you'll land on a short setup flow that helps you create your first agent and test. Feel free to click through it — **or hit _Skip_** and jump straight to the dashboard if you'd rather set things up yourself. Either way takes a minute.
-
-### Recommended: start by testing your agent (via Claude Code)
-
-The fastest path — and what we recommend for the hackathon — is to drive Cekura from **Claude Code** using our MCP server + skills. You stay in your terminal, and Cekura handles agent creation, scenario generation, and running the test.
-
-**1. Install the Cekura skills + MCP** (Claude Code marketplace plugin — bundles the skills, slash commands, and auto-configured MCP server):
+### Test via API
 
 ```bash
+curl -X POST http://localhost:7860/api/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_id": "test1",
+    "caller_phone": "+14155559999",
+    "caller_name": "Siri",
+    "medication": "Amoxicillin",
+    "dosage": "500mg",
+    "location": "SF"
+  }'
+```
+
+### Test via WebRTC (no Twilio needed)
+
+```bash
+cd server
+uv run bot_user_intake.py
+# Open http://localhost:7860 and click Connect
+```
+
+## Cekura testing
+
+```bash
+# Install Cekura skills in Claude Code
 /plugin marketplace add cekura-ai/cekura-skills
 /plugin install cekura@cekura-skills
-```
 
-Repo: [github.com/cekura-ai/cekura-skills](https://github.com/cekura-ai/cekura-skills) · Full setup + other agents (Cursor, Codex, etc.): **[docs.cekura.ai → Claude Code guide](https://docs.cekura.ai/mcp/claude-code-guide)** and **[Skills](https://docs.cekura.ai/mcp/skills)**.
-
-**2. Run an end-to-end test** of your agent with a single command:
-
-```
+# Run end-to-end test
 /cekura-report
 ```
 
-This spins up anything from 10–20 evaluators (what Cekura calls test cases), runs scenarios against your Pipecat agent, and gives you back a full report — transcripts, scores, and what failed — so you can iterate fast.
+Select **Pipecat** as the provider. Cekura runs automated voice conversations against Arya and the mock pharmacies, scores the transcripts, and reports failures.
 
-> When connecting your agent, **select `Pipecat` as the provider.** Details: [docs.cekura.ai → Pipecat](https://docs.cekura.ai/documentation/integrations/pipecat/automated).
+## File structure
 
-## Learn more
-
-### Pipecat
-
-- [Pipecat Documentation](https://docs.pipecat.ai/)
-- [Pipecat Cloud Deployment](https://docs.pipecat.ai/pipecat-cloud/introduction)
-- [Pipecat Examples](https://github.com/pipecat-ai/pipecat-examples)
-- [Pipecat Discord](https://discord.gg/pipecat)
-
-### Twilio
-
-- [Twilio Developer Hub](https://www.twilio.com/en-us/developers)
-- [Twilio Documentation](https://www.twilio.com/docs)
-- [Twilio Dev phone](https://www.twilio.com/docs/labs/dev-phone)
-
-### Cekura
-
-- [Claude Code guide](https://docs.cekura.ai/mcp/claude-code-guide) — MCP + skills setup
-- [Cekura skills](https://docs.cekura.ai/mcp/skills) — all slash commands
-- [Pipecat integration](https://docs.cekura.ai/documentation/integrations/pipecat/automated)
-- [Cekura docs](https://docs.cekura.ai) · [dashboard](https://dashboard.cekura.ai)
+```
+server/
+├── main.py                  # FastAPI server — orchestrates everything
+├── bot_user_intake.py       # Arya inbound: collects name, med, dosage, location
+├── bot_pharmacy_caller.py   # Arya outbound: calls pharmacies on behalf of user
+├── mock_pharmacies.py       # Mock pharmacy bots (helpful + grumpy personas)
+├── medication_db.py         # Drug catalog + per-pharmacy inventory
+├── pharmacy_data.py         # SF Bay Area pharmacy directory (16 locations)
+├── call_log.py              # In-memory call tracking for dashboard + SMS
+├── sms_helper.py            # Twilio SMS for sending results
+├── nemotron_llm.py          # NVIDIA Nemotron LLM wrapper (TTFB metrics)
+├── nvidia_stt.py            # NVIDIA Parakeet STT service
+├── pyproject.toml           # uv package definitions
+└── .env.example             # All required env vars
+```

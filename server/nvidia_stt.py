@@ -11,6 +11,7 @@ import json
 import time
 from collections.abc import AsyncGenerator
 
+import numpy as np
 import websockets
 from loguru import logger
 from pipecat.frames.frames import (
@@ -30,6 +31,35 @@ from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.settings import STTSettings
 from pipecat.services.stt_service import WebsocketSTTService
 from pipecat.utils.time import time_now_iso8601
+from scipy import signal
+
+
+def _resample_audio(audio_bytes: bytes, from_rate: int, to_rate: int) -> bytes:
+    """Resample audio from one sample rate to another.
+
+    Args:
+        audio_bytes: Raw audio bytes (16-bit PCM)
+        from_rate: Source sample rate in Hz
+        to_rate: Target sample rate in Hz
+
+    Returns:
+        Resampled audio bytes (16-bit PCM)
+    """
+    if from_rate == to_rate:
+        return audio_bytes
+
+    # Convert bytes to numpy array (16-bit PCM)
+    audio_np = np.frombuffer(audio_bytes, dtype=np.int16)
+
+    # Calculate number of output samples
+    num_samples = int(len(audio_np) * to_rate / from_rate)
+
+    # Resample using scipy
+    resampled = signal.resample(audio_np, num_samples)
+
+    # Convert back to 16-bit PCM bytes
+    resampled_int16 = resampled.astype(np.int16)
+    return resampled_int16.tobytes()
 
 
 def _strip_committed_prefix(interim_text: str, committed_count: int) -> str | None:
@@ -223,11 +253,16 @@ class NVidiaWebSocketSTTService(WebsocketSTTService):
         if self._websocket and self._ready:
             try:
                 async with self._audio_send_lock:
+                    logger.debug(f"{self} sending {len(audio)} bytes of audio (sample_rate={self.sample_rate})")
                     await self._websocket.send(audio)
                     self._audio_bytes_sent += len(audio)
             except Exception as e:
                 logger.error(f"{self} failed to send audio: {e}")
                 await self._report_error(ErrorFrame(f"Failed to send audio: {e}"))
+        elif not self._websocket:
+            logger.warning(f"{self} cannot send audio - websocket not connected")
+        elif not self._ready:
+            logger.warning(f"{self} cannot send audio - server not ready")
         yield None
 
     async def process_audio_frame(self, frame: AudioRawFrame, direction: FrameDirection):
@@ -255,11 +290,17 @@ class NVidiaWebSocketSTTService(WebsocketSTTService):
             )
             return
 
+        # Resample audio if needed (e.g., Twilio sends 8kHz, NVIDIA expects 16kHz)
+        audio = frame.audio
+        if frame.sample_rate != self.sample_rate:
+            logger.info(f"{self} resampling audio from {frame.sample_rate}Hz to {self.sample_rate}Hz")
+            audio = _resample_audio(audio, frame.sample_rate, self.sample_rate)
+
         if self._user_speaking:
-            await self.process_generator(self.run_stt(frame.audio))
+            await self.process_generator(self.run_stt(audio))
             return
 
-        self._audio_ring += frame.audio
+        self._audio_ring += audio
         if self._preroll_bytes > 0 and len(self._audio_ring) > self._preroll_bytes:
             del self._audio_ring[: -self._preroll_bytes]
 
@@ -284,6 +325,7 @@ class NVidiaWebSocketSTTService(WebsocketSTTService):
             return
 
         if isinstance(frame, VADUserStartedSpeakingFrame):
+            logger.info(f"{self} user started speaking, sending {len(self._audio_ring)} bytes of preroll audio")
             if self._audio_ring:
                 await self.process_generator(self.run_stt(bytes(self._audio_ring)))
             self._audio_ring.clear()
@@ -348,8 +390,9 @@ class NVidiaWebSocketSTTService(WebsocketSTTService):
         logger.debug(f"{self} connecting to {self._url}")
         await self._connect_websocket()
 
-        # Start receive task
-        self._receive_task = asyncio.create_task(self._receive_task_handler(self._report_error))
+        # Start receive task - call _receive_messages directly
+        logger.info(f"{self} starting receive task")
+        self._receive_task = asyncio.create_task(self._receive_messages())
 
         await self._call_event_handler("on_connected", self)
 
@@ -379,17 +422,20 @@ class NVidiaWebSocketSTTService(WebsocketSTTService):
         explicit params are for belt-and-suspenders discoverability.
         """
         try:
+            logger.info(f"{self} attempting websocket connection to {self._url}")
             self._websocket = await websockets.connect(
                 self._url,
                 ping_interval=self._ws_ping_interval,
                 ping_timeout=self._ws_ping_timeout,
             )
             self._ready = False
+            logger.info(f"{self} websocket connected, waiting for ready message")
 
             # Wait for ready message
             try:
                 ready_msg = await asyncio.wait_for(self._websocket.recv(), timeout=5.0)
                 data = json.loads(ready_msg)
+                logger.info(f"{self} received initial message: {data}")
                 if data.get("type") == "ready":
                     self._ready = True
                     logger.info(f"{self} connected and ready")
@@ -427,31 +473,44 @@ class NVidiaWebSocketSTTService(WebsocketSTTService):
 
     async def _receive_messages(self):
         """Receive and process websocket messages from NVIDIA ASR server."""
+        logger.info(f"{self} _receive_messages: ENTERED (websocket={self._websocket is not None}, ready={self._ready})")
+
         if not self._websocket:
+            logger.error(f"{self} _receive_messages: no websocket connection!")
             return
 
-        async for message in self._websocket:
-            try:
-                data = json.loads(message)
-                msg_type = data.get("type")
+        logger.info(f"{self} _receive_messages: starting to listen for messages from server")
+        try:
+            logger.info(f"{self} _receive_messages: entering receive loop")
+            message_count = 0
+            async for message in self._websocket:
+                message_count += 1
+                logger.info(f"{self} _receive_messages: received message #{message_count}")
+                try:
+                    data = json.loads(message)
+                    msg_type = data.get("type")
+                    logger.info(f"{self} received message: type={msg_type}, data={data}")
 
-                if msg_type == "transcript":
-                    await self._handle_transcript(data)
-                elif msg_type == "error":
-                    error_msg = data.get("message", "Unknown error")
-                    logger.error(f"{self} server error: {error_msg}")
-                    await self._report_error(ErrorFrame(f"Server error: {error_msg}"))
-                elif msg_type == "ready":
-                    # Server might send another ready message after reset
-                    self._ready = True
-                    logger.debug(f"{self} server ready")
-                else:
-                    logger.debug(f"{self} unknown message type: {msg_type}")
+                    if msg_type == "transcript":
+                        await self._handle_transcript(data)
+                    elif msg_type == "error":
+                        error_msg = data.get("message", "Unknown error")
+                        logger.error(f"{self} server error: {error_msg}")
+                        await self._report_error(ErrorFrame(f"Server error: {error_msg}"))
+                    elif msg_type == "ready":
+                        # Server might send another ready message after reset
+                        self._ready = True
+                        logger.debug(f"{self} server ready")
+                    else:
+                        logger.warning(f"{self} unknown message type: {msg_type}, full data: {data}")
 
-            except json.JSONDecodeError as e:
-                logger.error(f"{self} invalid JSON: {e}")
-            except Exception as e:
-                logger.error(f"{self} error processing message: {e}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"{self} invalid JSON: {e}")
+                except Exception as e:
+                    logger.error(f"{self} error processing message: {e}")
+        except Exception as e:
+            logger.error(f"{self} _receive_messages failed: {e}")
+            await self._report_error(ErrorFrame(f"Receive task failed: {e}"))
 
     async def _handle_transcript(self, data: dict):
         """Handle a transcript message from the server.
@@ -469,9 +528,12 @@ class NVidiaWebSocketSTTService(WebsocketSTTService):
         is_final = data.get("is_final", False)
         is_hard_reset = data.get("finalize", True)  # Default True for backward compat
 
+        logger.info(f"{self} received transcript: text='{text}', is_final={is_final}, is_hard_reset={is_hard_reset}")
+
         if not text:
             # A hard reset that came back empty still ends the finalization wait.
             if is_final and is_hard_reset:
+                logger.warning(f"{self} received EMPTY final transcript after hard reset")
                 self._waiting_for_final = False
             return
 
