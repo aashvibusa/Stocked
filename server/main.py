@@ -18,6 +18,7 @@ HOW OUTBOUND CALLS WORK:
 
 import asyncio
 import os
+from urllib.parse import urlencode
 
 import uvicorn
 from dotenv import load_dotenv
@@ -194,7 +195,12 @@ async def _make_outbound_call(req: SearchRequest, pharmacy: dict) -> dict:
     # Where the call actually goes:
     # 1. DEMO mode — rings YOUR phone so you can role-play as the pharmacist
     # 2. MOCK mode — rings a second Twilio number routed to mock_pharmacies.py
-    to_number = os.getenv("DEMO_PHONE_NUMBER") or os.getenv("MOCK_PHARMACY_NUMBER")
+    demo_number = os.getenv("DEMO_PHONE_NUMBER")
+    mock_number = os.getenv("MOCK_PHARMACY_NUMBER")
+    to_number = demo_number or mock_number
+
+    mode = "DEMO" if demo_number else "MOCK"
+    logger.info(f"Outbound call mode: {mode}, calling {to_number}")
 
     if not all([account_sid, auth_token, from_number, server_url, to_number]):
         raise ValueError(
@@ -205,25 +211,29 @@ async def _make_outbound_call(req: SearchRequest, pharmacy: dict) -> dict:
     client = TwilioClient(account_sid, auth_token)
 
     # TwiML URL passes metadata so the receiving end knows what's being asked
-    twiml_url = (
-        f"{server_url}/twiml/outbound"
-        f"?medication={req.medication}"
-        f"&dosage={req.dosage}"
-        f"&pharmacy_name={pharmacy['name']}"
-        f"&pharmacy_address={pharmacy['address']}"
-        f"&request_id={req.request_id}"
-        f"&caller_name={req.caller_name}"
-    )
+    params = {
+        "medication": req.medication,
+        "dosage": req.dosage,
+        "pharmacy_name": pharmacy["name"],
+        "pharmacy_address": pharmacy["address"],
+        "request_id": req.request_id,
+        "caller_name": req.caller_name,
+    }
+    twiml_url = f"{server_url}/twiml/outbound?{urlencode(params)}"
 
-    call = client.calls.create(
-        to=to_number,
-        from_=from_number,
-        url=twiml_url,
-        method="POST",
-    )
-
-    logger.info(f"Outbound call to {pharmacy['name']} (via {to_number}): SID={call.sid}")
-    return {"call_sid": call.sid, "pharmacy": pharmacy["name"]}
+    try:
+        logger.info(f"Attempting call to {to_number} from {from_number} with URL: {twiml_url}")
+        call = client.calls.create(
+            to=to_number,
+            from_=from_number,
+            url=twiml_url,
+            method="POST",
+        )
+        logger.info(f"Outbound call to {pharmacy['name']} (via {to_number}): SID={call.sid}")
+        return {"call_sid": call.sid, "pharmacy": pharmacy["name"]}
+    except Exception as e:
+        logger.error(f"Failed to create outbound call: {e}")
+        raise
 
 
 # ─────────────────────────────────────────────────────────────
