@@ -6,7 +6,7 @@ Built for the YC Voice Agents Hackathon with [Pipecat](https://pipecat.ai), [NVI
 
 ## How it works
 
-1. You call the Stocked phone number
+1. You call the Stocked phone number: (360) 302-4376
 2. **Arya** (our voice agent) picks up, asks your name, what medication you need, the dosage, and your area
 3. Arya hangs up and immediately calls pharmacies near you in parallel
 4. Arya asks each pharmacy: *"Hi, this is Arya calling from Stocked on behalf of [your name]. Do you have [medication] [dosage] available for pickup?"*
