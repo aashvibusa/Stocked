@@ -24,6 +24,9 @@ def send_summary_sms(caller_phone: str, caller_name: str, medication: str,
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
     from_number = os.getenv("TWILIO_PHONE_NUMBER")
 
+    # WhatsApp uses the sandbox number, not your regular Twilio number
+    whatsapp_from = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+
     if not all([account_sid, auth_token, from_number]):
         logger.error("Missing Twilio credentials for SMS — skipping")
         return
@@ -44,7 +47,12 @@ def send_summary_sms(caller_phone: str, caller_name: str, medication: str,
 
     try:
         client = TwilioClient(account_sid, auth_token)
-        msg = client.messages.create(body=body, from_=from_number, to=caller_phone)
-        logger.info(f"SMS sent to {caller_phone}: {msg.sid}")
+        # Use WhatsApp sandbox
+        msg = client.messages.create(
+            body=body,
+            from_=whatsapp_from,
+            to=f"whatsapp:{caller_phone}"
+        )
+        logger.info(f"WhatsApp message sent to {caller_phone}: {msg.sid}")
     except Exception as e:
-        logger.error(f"Failed to send SMS: {e}")
+        logger.error(f"Failed to send WhatsApp message: {e}")
