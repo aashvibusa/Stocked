@@ -1,8 +1,10 @@
 # Stocked
 
-**Voice AI agent that calls pharmacies to check medication availability.**
+**Voice AI agent that calls local pharmacies to check whether a prescription medication is in stock.**
 
-Built for the YC Voice Agents Hackathon with [Pipecat](https://pipecat.ai), [NVIDIA Nemotron](https://huggingface.co/nvidia), [Twilio](https://twilio.com), and [Cekura](https://cekura.com).
+Built with [Pipecat](https://pipecat.ai), [NVIDIA Nemotron](https://huggingface.co/nvidia), [Gradium](https://gradium.ai), [Twilio](https://twilio.com), and [Cekura]([https://cekura.com](https://www.cekura.ai)).
+
+We built this project from scratch specifically for this hackathon.
 
 ## How it works
 
@@ -12,12 +14,16 @@ Built for the YC Voice Agents Hackathon with [Pipecat](https://pipecat.ai), [NVI
 4. Arya asks each pharmacy: *"Hi, this is Arya calling from Stocked on behalf of [your name]. Do you have [medication] [dosage] available for pickup?"*
 5. You get a text with the results:
    ```
-   Hi Siri, we checked 3 pharmacies for Amoxicillin 500mg.
+   Hi [your name], we checked 3 pharmacies for Amoxicillin 500mg.
      CVS Pharmacy: IN STOCK ($12.99)
      Walgreens: OUT OF STOCK
      Rite Aid: OUT OF STOCK
    - Stocked
    ```
+
+## Video Link
+
+https://youtu.be/ppo6F4hg9AI
 
 ## Tech stack
 
@@ -27,10 +33,7 @@ Built for the YC Voice Agents Hackathon with [Pipecat](https://pipecat.ai), [NVI
 | **LLM** | NVIDIA Nemotron-3-Super-120B via vLLM |
 | **TTS** | Gradium |
 | **Orchestration** | Pipecat |
-| **Telephony** | Twilio |
-| **Testing** | Cekura |
-
-**Gradium** is a TTS (text-to-speech) provider — it converts Arya's text responses into spoken audio. **Pipecat** is the orchestration framework that wires STT -> LLM -> TTS into a real-time voice pipeline. You need both: Pipecat runs the pipeline, Gradium provides one of the services in it.
+| **Phone and Text** | Twilio |
 
 ## Medication database
 
@@ -53,7 +56,7 @@ The mock pharmacies pull from `medication_db.py`. Each pharmacy has different st
 | Hydrochlorothiazide | 25mg | tablet | 30 | $4-10 |
 | Sertraline | 50mg | tablet | 30 | $4-15 |
 
-**Pharmacy inventory varies.** CVS has 11 medications, Rite Aid only has 4, Costco has everything. See `medication_db.py` for full details.
+This is to simulate the inventory of various pharamacies for demonstration purposes. 
 
 ## Example call script
 
@@ -153,56 +156,9 @@ uv run main.py
 
 Open `http://localhost:7860/dashboard` to see live call status, pharmacy results, and transcripts in real time.
 
-### Test via API
+### Feedback
 
-```bash
-curl -X POST http://localhost:7860/api/search \
-  -H "Content-Type: application/json" \
-  -d '{
-    "request_id": "test1",
-    "caller_phone": "+14155559999",
-    "caller_name": "Siri",
-    "medication": "Amoxicillin",
-    "dosage": "500mg",
-    "location": "SF"
-  }'
-```
-
-### Test via WebRTC (no Twilio needed)
-
-```bash
-cd server
-uv run bot_user_intake.py
-# Open http://localhost:7860 and click Connect
-```
-
-## Cekura testing
-
-```bash
-# Install Cekura skills in Claude Code
-/plugin marketplace add cekura-ai/cekura-skills
-/plugin install cekura@cekura-skills
-
-# Run end-to-end test
-/cekura-report
-```
-
-Select **Pipecat** as the provider. Cekura runs automated voice conversations against Arya and the mock pharmacies, scores the transcripts, and reports failures.
-
-## File structure
-
-```
-server/
-├── main.py                  # FastAPI server — orchestrates everything
-├── bot_user_intake.py       # Arya inbound: collects name, med, dosage, location
-├── bot_pharmacy_caller.py   # Arya outbound: calls pharmacies on behalf of user
-├── mock_pharmacies.py       # Mock pharmacy bots (helpful + grumpy personas)
-├── medication_db.py         # Drug catalog + per-pharmacy inventory
-├── pharmacy_data.py         # SF Bay Area pharmacy directory (16 locations)
-├── call_log.py              # In-memory call tracking for dashboard + SMS
-├── sms_helper.py            # Twilio SMS for sending results
-├── nemotron_llm.py          # NVIDIA Nemotron LLM wrapper (TTFB metrics)
-├── nvidia_stt.py            # NVIDIA Parakeet STT service
-├── pyproject.toml           # uv package definitions
-└── .env.example             # All required env vars
-```
+- Cekura was very interactve, but a bit difficult to set up with our workload for calling multiple agents at once and combining with Twilio's free trial tier as it required physically pressing a key to execute code.
+- Overall, the NVIDIA models were very good at interacting with a user, however they did have some trouble understanding non-traditional names and frequently picked up background noise.
+- Twilio was very intuitive to set up for the most part, though it would be nice to have a more streamlined process for SMS messaging.
+- Pipecat was easy to use and integrated seamlessly with our workflow. It made it easy to pass around transcript data between services.
