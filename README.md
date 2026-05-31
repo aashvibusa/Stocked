@@ -1,10 +1,11 @@
 # Stocked
 
-**Voice AI agent that calls local pharmacies to check whether a prescription medication is in stock.**
+**Stocked is a voice AI agent that calls local pharmacies to check whether a prescription medication is in stock. **
 
 Built with [Pipecat](https://pipecat.ai), [NVIDIA Nemotron](https://huggingface.co/nvidia), [Gradium](https://gradium.ai), [Twilio](https://twilio.com), and [Cekura]([https://cekura.com](https://www.cekura.ai)).
 
-We built this project from scratch specifically for this hackathon.
+Stocked was inspired by a family member’s frustrating experience of spending hours calling multiple pharmacies just to find where their prescription was in stock. They expressed how much of an extra burden this added to their lives. We realized that a lot of people face this stressful hurdle for medication that they need to thrive.  So we created Stocked to completely automate the pharmacy-checking process. Our mission is to eliminate the tedious phone calls so that people can get their essential medications reliably and effortlessly. We built this project from scratch specifically for this hackathon.
+
 
 ## How it works
 
@@ -35,6 +36,17 @@ https://youtu.be/ppo6F4hg9AI
 | **Orchestration** | Pipecat |
 | **Phone and Text** | Twilio |
 
+
+### Feedback
+
+- Cekura was very interactve, but a bit difficult to set up with our workload for calling multiple agents at once and combining with Twilio's free trial tier as it required physically pressing a key to execute code.
+- Overall, the NVIDIA models were very good at interacting with a user, however they did have some trouble understanding non-traditional names and frequently picked up background noise.
+- Twilio was very intuitive to set up for the most part, though it would be nice to have a more streamlined process for SMS messaging.
+- Pipecat was easy to use and integrated seamlessly with our workflow. It made it easy to pass around transcript data between services.
+
+
+
+# Additional Set Up Info 
 ## Medication database
 
 The mock pharmacies pull from `medication_db.py`. Each pharmacy has different stock:
@@ -74,6 +86,9 @@ This is to simulate the inventory of various pharamacies for demonstration purpo
 > *"Hi, this is Arya calling from Stocked on behalf of Siri. I'm checking if you have Amoxicillin 500 milligram capsules available for pickup?"*
 
 **Pharmacy:** *"Yes, we have that. For a thirty-day supply the cash price is about twelve ninety-nine."*
+
+
+
 
 ## Setup
 
@@ -155,10 +170,3 @@ uv run main.py
 ### Dashboard
 
 Open `http://localhost:7860/dashboard` to see live call status, pharmacy results, and transcripts in real time.
-
-### Feedback
-
-- Cekura was very interactve, but a bit difficult to set up with our workload for calling multiple agents at once and combining with Twilio's free trial tier as it required physically pressing a key to execute code.
-- Overall, the NVIDIA models were very good at interacting with a user, however they did have some trouble understanding non-traditional names and frequently picked up background noise.
-- Twilio was very intuitive to set up for the most part, though it would be nice to have a more streamlined process for SMS messaging.
-- Pipecat was easy to use and integrated seamlessly with our workflow. It made it easy to pass around transcript data between services.
