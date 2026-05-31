@@ -1,6 +1,6 @@
 # Stocked
 
-**Stocked is a voice AI agent that calls local pharmacies to check whether a prescription medication is in stock. **
+**Stocked is a voice AI agent that calls local pharmacies to check whether a prescription medication is in stock.**
 
 Built with [Pipecat](https://pipecat.ai), [NVIDIA Nemotron](https://huggingface.co/nvidia), [Gradium](https://gradium.ai), [Twilio](https://twilio.com), and [Cekura]([https://cekura.com](https://www.cekura.ai)).
 
