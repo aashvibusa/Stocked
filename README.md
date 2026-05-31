@@ -4,7 +4,7 @@
 
 Built with [Pipecat](https://pipecat.ai), [NVIDIA Nemotron](https://huggingface.co/nvidia), [Gradium](https://gradium.ai), [Twilio](https://twilio.com), and [Cekura]([https://cekura.com](https://www.cekura.ai)).
 
-Stocked was inspired by a family member’s frustrating experience of spending hours calling multiple pharmacies just to find where their prescription was in stock. They expressed how much of an extra burden this added to their lives. We realized that a lot of people face this stressful hurdle for medication that they need to thrive.  So we created Stocked to completely automate the pharmacy-checking process. Our mission is to eliminate the tedious phone calls so that people can get their essential medications reliably and effortlessly. We built this project from scratch specifically for this hackathon.
+Stocked was inspired by a family member’s frustrating experience of spending hours calling multiple pharmacies and driving around just to find where their prescription was in stock. They expressed how much of an extra burden this added to their lives. We realized that a lot of people face this stressful hurdle for medication that they need to thrive.  So we created Stocked to completely automate the pharmacy-checking process. Our mission is to eliminate the tedious phone calls so that people can get their essential medications reliably and effortlessly. Stocked calls multiple pharmacies concurrently to expidite the process, and provides the patient with a text letting them know where they can find their presrcpition.  We built this project from scratch specifically for this hackathon.
 
 
 ## How it works
